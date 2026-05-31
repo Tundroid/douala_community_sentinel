@@ -21,8 +21,19 @@ class DcsRepository {
     private suspend fun ensureAuthenticated() {
         if (auth.currentUserOrNull() == null) {
             try {
+                // We manually load because autoLoadFromStorage is set to false in DcsApplication
+                // to avoid startup crashes. We catch Throwable here because SettingsSessionManager
+                // may throw IllegalStateException if the key is missing in some versions.
+                auth.loadFromStorage()
+            } catch (e: Throwable) {
+                Log.e("DcsRepository", "Failed to load saved session", e)
+            }
+        }
+
+        if (auth.currentUserOrNull() == null) {
+            try {
                 auth.signInAnonymously()
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 Log.e("DcsRepository", "Supabase Anonymous sign-in failed.", e)
             }
         }
@@ -82,6 +93,7 @@ class DcsRepository {
                 val bucket = storage.from("reports")
                 val uploadedUrl = uploadWithRetry(bucket, imagePath, imageUri)
                 finalReport = finalReport.copy(imageUrl = uploadedUrl)
+                Log.d("DcsRepository", "Image uploaded to: $uploadedUrl")
             }
 
             db.from("reports").insert(finalReport)

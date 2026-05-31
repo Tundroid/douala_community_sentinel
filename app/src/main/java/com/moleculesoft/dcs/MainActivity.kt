@@ -15,12 +15,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.moleculesoft.dcs.data.PreferenceManager
 import com.moleculesoft.dcs.service.SensorService
 import com.moleculesoft.dcs.worker.DataSyncWorker
 import com.moleculesoft.dcs.ui.theme.DoualaCommunitySentinelTheme
 import com.moleculesoft.dcs.ui.MainScreen
 import com.moleculesoft.dcs.ui.OnboardingScreen
+import com.moleculesoft.dcs.ui.LoginScreen
+import com.moleculesoft.dcs.ui.AuthViewModel
+import com.moleculesoft.dcs.ui.AuthState
 import com.moleculesoft.dcs.ui.components.PermissionRationaleDialog
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -43,6 +47,8 @@ class MainActivity : ComponentActivity() {
             val context = LocalContext.current
             val scope = rememberCoroutineScope()
             val prefManager = remember { PreferenceManager(context) }
+            val authViewModel: AuthViewModel = viewModel()
+            val authState by authViewModel.authState.collectAsState()
             
             var showOnboarding by remember { mutableStateOf<Boolean?>(null) }
             var showRationale by remember { mutableStateOf(false) }
@@ -62,57 +68,71 @@ class MainActivity : ComponentActivity() {
                     ) == PackageManager.PERMISSION_GRANTED
             }
 
-            LaunchedEffect(Unit) {
-                showOnboarding = !prefManager.isOnboardingCompleted.first()
-                if (showOnboarding == false) {
-                    showRationale = !hasRequiredPermissions()
+            LaunchedEffect(authState) {
+                if (authState is AuthState.Authenticated) {
+                    showOnboarding = !prefManager.isOnboardingCompleted.first()
+                    if (showOnboarding == false) {
+                        showRationale = !hasRequiredPermissions()
+                    }
                 }
             }
 
             DoualaCommunitySentinelTheme {
-                when (showOnboarding) {
-                    true -> {
-                        OnboardingScreen(onComplete = {
-                            scope.launch {
-                                prefManager.setOnboardingCompleted(true)
-                                showOnboarding = false
-                                showRationale = true
-                            }
+                when (authState) {
+                    is AuthState.Loading -> {
+                        // You might want a better splash/loading here
+                    }
+                    is AuthState.Unauthenticated, is AuthState.Error -> {
+                        LoginScreen(onLoginSuccess = {
+                            // AuthViewModel will update authState
                         })
                     }
-                    false -> {
-                        if (showRationale) {
-                            PermissionRationaleDialog(
-                                title = "Community Safety Needs Location",
-                                text = "To accurately map flooding and potholes in your neighborhood, Douala Community Sentinel needs location and audio access.",
-                                onConfirm = {
-                                    showRationale = false
-                                    requestPermissionLauncher.launch(
-                                        arrayOf(
-                                            Manifest.permission.ACCESS_FINE_LOCATION,
-                                            Manifest.permission.ACCESS_COARSE_LOCATION,
-                                            Manifest.permission.RECORD_AUDIO,
-                                            Manifest.permission.CAMERA,
-                                            Manifest.permission.POST_NOTIFICATIONS
-                                        )
-                                    )
-                                },
-                                onDismiss = { showRationale = false }
-                            )
-                        }
-
-                        if (!showRationale) {
-                            LaunchedEffect(showOnboarding) {
-                                if (hasRequiredPermissions()) {
-                                    setupWorkManager()
-                                    checkAndStartService()
-                                }
+                    is AuthState.Authenticated -> {
+                        when (showOnboarding) {
+                            true -> {
+                                OnboardingScreen(onComplete = {
+                                    scope.launch {
+                                        prefManager.setOnboardingCompleted(true)
+                                        showOnboarding = false
+                                        showRationale = true
+                                    }
+                                })
                             }
-                        }
+                            false -> {
+                                if (showRationale) {
+                                    PermissionRationaleDialog(
+                                        title = "Community Safety Needs Location",
+                                        text = "To accurately map flooding and potholes in your neighborhood, Douala Community Sentinel needs location and audio access.",
+                                        onConfirm = {
+                                            showRationale = false
+                                            requestPermissionLauncher.launch(
+                                                arrayOf(
+                                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                                                    Manifest.permission.RECORD_AUDIO,
+                                                    Manifest.permission.CAMERA,
+                                                    Manifest.permission.POST_NOTIFICATIONS
+                                                )
+                                            )
+                                        },
+                                        onDismiss = { showRationale = false }
+                                    )
+                                }
 
-                        MainScreen()
+                                if (!showRationale) {
+                                    LaunchedEffect(showOnboarding) {
+                                        if (hasRequiredPermissions()) {
+                                            setupWorkManager()
+                                            checkAndStartService()
+                                        }
+                                    }
+                                }
+
+                                MainScreen()
+                            }
+                            else -> {} // Still loading pref
+                        }
                     }
-                    else -> {} // Still loading pref
                 }
             }
         }

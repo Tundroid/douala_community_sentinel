@@ -6,11 +6,10 @@ import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.storage.Storage
 import io.github.jan.supabase.auth.Auth
-import io.github.jan.supabase.auth.SettingsSessionManager
-import com.russhwolf.settings.SharedPreferencesSettings
-import android.content.Context
 import androidx.room.Room
 import com.moleculesoft.dcs.data.local.AppDatabase
+import io.github.jan.supabase.serializer.KotlinXSerializer
+import kotlinx.serialization.json.Json
 
 class DcsApplication : Application() {
     companion object {
@@ -27,19 +26,24 @@ class DcsApplication : Application() {
         database = Room.databaseBuilder(
             this,
             AppDatabase::class.java,
-            "dcs_database"
+            "dcs_database",
         ).fallbackToDestructiveMigration(dropAllTables = true)
             .build()
         
         supabase = createSupabaseClient(
-            supabaseUrl = "https://jsgafguvblfjgaktrmqs.supabase.co", // TODO: Replace with your Supabase URL
-            supabaseKey = "sb_publishable_yF_cXcUa9kywfCH3BzH3jw_b55I4PZz" // TODO: Replace with your Supabase Anon Key
+            supabaseUrl = "https://jsgafguvblfjgaktrmqs.supabase.co",
+            supabaseKey = "sb_publishable_yF_cXcUa9kywfCH3BzH3jw_b55I4PZz"
         ) {
             install(Postgrest)
             install(Auth) {
-                sessionManager = SettingsSessionManager(SharedPreferencesSettings(getSharedPreferences("supabase_session", Context.MODE_PRIVATE)))
+                autoLoadFromStorage = true
             }
             install(Storage)
+
+            defaultSerializer = KotlinXSerializer(Json {
+                ignoreUnknownKeys = true
+                coerceInputValues = true
+            })
         }
     }
 }

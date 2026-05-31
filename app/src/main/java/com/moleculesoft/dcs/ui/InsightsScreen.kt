@@ -1,28 +1,35 @@
 package com.moleculesoft.dcs.ui
 
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
-import coil.compose.rememberAsyncImagePainter
+import coil.compose.AsyncImage
 import com.moleculesoft.dcs.data.DcsRepository
 import com.moleculesoft.dcs.data.UrbanReport
 import kotlinx.coroutines.launch
+
+import coil.request.ImageRequest
+import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun InsightsScreen() {
     val repository = remember { DcsRepository() }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     var allReports by remember { mutableStateOf<List<UrbanReport>>(emptyList()) }
     var selectedNeighborhood by remember { mutableStateOf("All") }
     var isLoading by remember { mutableStateOf(true) }
@@ -52,8 +59,18 @@ fun InsightsScreen() {
         Text(text = "Urban Insights", style = MaterialTheme.typography.headlineSmall)
         
         TabRow(selectedTabIndex = activeTab) {
-            Tab(selected = activeTab == 0, onClick = { activeTab = 0 }, text = { Text("Feed") })
-            Tab(selected = activeTab == 1, onClick = { activeTab = 1 }, text = { Text("Trends") })
+            Tab(
+                selected = activeTab == 0, 
+                onClick = { activeTab = 0 }, 
+                text = { Text("Feed") },
+                icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) }
+            )
+            Tab(
+                selected = activeTab == 1, 
+                onClick = { activeTab = 1 }, 
+                text = { Text("Trends") },
+                icon = { Icon(Icons.AutoMirrored.Filled.TrendingUp, contentDescription = null) }
+            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -74,7 +91,7 @@ fun InsightsScreen() {
                 }
             )
         } else {
-            TrendsView(reports = allReports)
+            TrendsView(reports = allReports, isLoading = isLoading)
         }
     }
 }
@@ -125,7 +142,14 @@ fun FeedView(
 }
 
 @Composable
-fun TrendsView(reports: List<UrbanReport>) {
+fun TrendsView(reports: List<UrbanReport>, isLoading: Boolean) {
+    if (isLoading) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+        return
+    }
+
     val stats = reports.groupBy { 
         when {
             it.description.contains("Bonaberi", true) -> "Bonaberi"
@@ -152,6 +176,35 @@ fun TrendsView(reports: List<UrbanReport>) {
         
         Spacer(modifier = Modifier.height(24.dp))
         
+        Text(text = "Hotspot Gallery", style = MaterialTheme.typography.titleMedium)
+        val reportsWithImages = reports.filter { !it.imageUrl.isNullOrBlank() }.take(5)
+        if (reportsWithImages.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                reportsWithImages.forEach { report ->
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(report.imageUrl)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = "Hotspot image",
+                        modifier = Modifier
+                            .size(120.dp),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+            }
+        } else {
+            Text(text = "No hotspot images available yet.", style = MaterialTheme.typography.bodySmall)
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         Text(text = "Actionable Recommendations", style = MaterialTheme.typography.titleMedium)
         recommendations.forEach { rec ->
             Card(
@@ -183,14 +236,17 @@ fun ReportCard(report: UrbanReport) {
                 style = MaterialTheme.typography.labelSmall
             )
             
-            report.imageUrl?.let { url ->
+            if (!report.imageUrl.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(8.dp))
-                Image(
-                    painter = rememberAsyncImagePainter(url),
-                    contentDescription = null,
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(report.imageUrl)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = "Report Image",
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(150.dp),
+                        .height(200.dp),
                     contentScale = ContentScale.Crop
                 )
             }

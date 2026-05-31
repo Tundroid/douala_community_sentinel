@@ -38,7 +38,7 @@ interface ReportDao {
     suspend fun setReportUploaded(id: String, pending: Boolean, imageUrl: String?)
 }
 
-@Database(entities = [SensorData::class, UrbanReport::class, UserStats::class], version = 3, exportSchema = false)
+@Database(entities = [SensorData::class, UrbanReport::class, UserStats::class], version = 4, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun sensorDao(): SensorDao

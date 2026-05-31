@@ -4,6 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -60,17 +61,26 @@ fun LoginScreen(
         when (authState) {
             is AuthState.Loading -> {
                 CircularProgressIndicator()
+                Text("Connecting to Google...", modifier = Modifier.padding(top = 16.dp))
             }
             is AuthState.Authenticated -> {
-                onLoginSuccess()
+                LaunchedEffect(Unit) {
+                    onLoginSuccess()
+                }
             }
             else -> {
                 if (authState is AuthState.Error) {
-                    Text(
-                        text = (authState as AuthState.Error).message,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(bottom = 16.dp)
-                    )
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                        modifier = Modifier.padding(bottom = 24.dp)
+                    ) {
+                        Text(
+                            text = (authState as AuthState.Error).message,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.padding(16.dp),
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
                 
                 Button(

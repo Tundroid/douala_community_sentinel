@@ -8,6 +8,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.moleculesoft.dcs.DcsApplication
 import com.moleculesoft.dcs.data.DcsRepository
 import com.moleculesoft.dcs.data.PreferenceManager
@@ -16,7 +17,9 @@ import com.moleculesoft.dcs.service.SensorService
 import kotlinx.coroutines.launch
 
 @Composable
-fun ProfileScreen() {
+fun ProfileScreen(
+    authViewModel: AuthViewModel = viewModel()
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val repository = remember { DcsRepository() }
@@ -90,10 +93,21 @@ fun ProfileScreen() {
                             DcsApplication.database.clearAllTables()
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Clear My Local Data")
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedButton(
+                    onClick = {
+                        authViewModel.signOut(context)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Sign Out")
                 }
             }
         }

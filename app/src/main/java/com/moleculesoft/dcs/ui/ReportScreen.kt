@@ -3,7 +3,6 @@ package com.moleculesoft.dcs.ui
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -20,6 +19,9 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.util.*
 
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+
 @Composable
 fun ReportScreen() {
     val context = LocalContext.current
@@ -31,6 +33,7 @@ fun ReportScreen() {
     var description by remember { mutableStateOf("") }
     var imageUri by remember { mutableStateOf<Uri?>(null) }
     var isUploading by remember { mutableStateOf(false) }
+    var photoCount by remember { mutableIntStateOf(0) }
     
     val tempUri = remember {
         val file = File(context.cacheDir, "temp_report_image.jpg")
@@ -39,7 +42,9 @@ fun ReportScreen() {
 
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
         if (success) {
+            imageUri = null // Reset to force recomposition
             imageUri = tempUri
+            photoCount++ // Increment to force Coil reload
         }
     }
 
@@ -74,8 +79,10 @@ fun ReportScreen() {
             Spacer(modifier = Modifier.height(16.dp))
 
             if (imageUri != null) {
-                Image(
-                    painter = rememberAsyncImagePainter(imageUri),
+                AsyncImage(
+                    model = ImageRequest.Builder(context)
+                        .data(imageUri)
+                        .build(),
                     contentDescription = "Captured Issue",
                     modifier = Modifier
                         .fillMaxWidth()

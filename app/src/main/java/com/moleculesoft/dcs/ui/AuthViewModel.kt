@@ -1,6 +1,9 @@
 package com.moleculesoft.dcs.ui
 
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
+import android.util.Log
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
@@ -13,6 +16,7 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.moleculesoft.dcs.DcsApplication
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.Google
+import io.github.jan.supabase.auth.providers.builtin.IDToken
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -43,10 +47,16 @@ class AuthViewModel : ViewModel() {
     }
 
     fun signInWithGoogle(context: Context) {
+        val activity = context.findActivity()
+        if (activity == null) {
+            _authState.value = AuthState.Error("Activity context not found")
+            return
+        }
+
         viewModelScope.launch {
             _authState.value = AuthState.Loading
             try {
-                val credentialManager = CredentialManager.create(context)
+                val credentialManager = CredentialManager.create(activity)
                 
                 val rawNonce = UUID.randomUUID().toString()
                 val bytes = rawNonce.toByteArray()
@@ -56,7 +66,8 @@ class AuthViewModel : ViewModel() {
 
                 val googleIdOption = GetGoogleIdOption.Builder()
                     .setFilterByAuthorizedAccounts(false)
-                    .setServerClientId("231826141387-v9i7q2e4m3j5u8p9a1u9r0k5j4l2v3q6.apps.googleusercontent.com") // Placeholder: User should replace this
+                    // Ensure this matches your Web Client ID from Google Cloud Console
+                    .setServerClientId("591798744626-2obtaj77pb7ihfguq7ek0bb70rht1qrl.apps.googleusercontent.com")
                     .setNonce(hashedNonce)
                     .build()
 
@@ -64,25 +75,41 @@ class AuthViewModel : ViewModel() {
                     .addCredentialOption(googleIdOption)
                     .build()
 
-                val result = credentialManager.getCredential(context, request)
-                handleSignIn(result)
+                Log.d("AuthViewModel", "Launching Credential Manager...")
+                val result = credentialManager.getCredential(activity, request)
+                handleSignIn(result, hashedNonce)
+            } catch (e: GetCredentialException) {
+                Log.e("AuthViewModel", "Credential Manager Error: ${e.type}", e)
+                _authState.value = AuthState.Error("Sign-in canceled or failed: ${e.message}")
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e("AuthViewModel", "Unexpected Error", e)
                 _authState.value = AuthState.Error(e.message ?: "Unknown error")
             }
         }
     }
 
-    private suspend fun handleSignIn(result: GetCredentialResponse) {
+    private fun Context.findActivity(): Activity? {
+        var context = this
+        while (context is ContextWrapper) {
+            if (context is Activity) return context
+            context = context.baseContext
+        }
+        return null
+    }
+
+    private suspend fun handleSignIn(result: GetCredentialResponse, nonce: String) {
         val credential = result.credential
         if (credential is GoogleIdTokenCredential) {
             val idToken = credential.idToken
             try {
-                supabase.auth.signInWith(Google) {
+                supabase.auth.signInWith(IDToken) {
                     this.idToken = idToken
+                    this.provider = Google
+                    this.nonce = nonce
                 }
                 _authState.value = AuthState.Authenticated
             } catch (e: Exception) {
+                e.printStackTrace()
                 _authState.value = AuthState.Error(e.message ?: "Supabase Sign-in failed")
             }
         } else {
@@ -92,7 +119,16 @@ class AuthViewModel : ViewModel() {
 
     fun signOut(context: Context) {
         viewModelScope.launch {
-            supabase.auth.signOut()
+            try {
+                supabase.auth.signOut()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            
+            // Stop the sensor service
+            val intent = android.content.Intent(context, com.moleculesoft.dcs.service.SensorService::class.java)
+            context.stopService(intent)
+
             val credentialManager = CredentialManager.create(context)
             credentialManager.clearCredentialState(ClearCredentialStateRequest())
             _authState.value = AuthState.Unauthenticated
