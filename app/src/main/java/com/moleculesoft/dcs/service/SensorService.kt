@@ -37,11 +37,15 @@ class SensorService : Service(), SensorEventListener {
     private val serviceScope = CoroutineScope(Dispatchers.IO)
     private var lastSaveTime = 0L
 
+    private val accelerometerSamples = ArrayDeque<Double>()
+    private var vibrationSum = 0.0
     private var lastX = 0f
     private var lastY = 0f
     private var lastZ = 0f
     private var variance = 0.0
     private var currentNeighborhood = "Unknown"
+    private var lastReportRefreshTime = 0L
+    private var cachedFloodReports: List<com.moleculesoft.dcs.data.UrbanReport> = emptyList()
 
     private val CHANNEL_ID = "SensorServiceChannel"
 
@@ -61,6 +65,9 @@ class SensorService : Service(), SensorEventListener {
         noiseRecorder = NoiseRecorder(this)
         noiseRecorder.start(cacheDir)
         repository = DcsRepository()
+        serviceScope.launch {
+            refreshFloodReports()
+        }
         
         createNotificationChannel()
         startForeground(1, createNotification("Collecting urban data..."))
@@ -111,8 +118,9 @@ class SensorService : Service(), SensorEventListener {
                     noiseLevelDb = dbLevel,
                     neighborhood = currentNeighborhood
                 )
-                repository.saveSensorData(data)
-                lastSaveTime = currentTime
+                if (repository.saveSensorData(data)) {
+                    lastSaveTime = currentTime
+                }
             }
         }
 
@@ -140,10 +148,11 @@ class SensorService : Service(), SensorEventListener {
 
     private fun checkForNearbyHazards(location: Location) {
         serviceScope.launch {
-            val reports = repository.getRecentReports()
-            val floodReports = reports.filter { it.type.contains("flood", ignoreCase = true) }
-            
-            for (report in floodReports) {
+            if (cachedFloodReports.isEmpty() || System.currentTimeMillis() - lastReportRefreshTime > 300_000) {
+                refreshFloodReports()
+            }
+
+            for (report in cachedFloodReports) {
                 if (report.latitude != null && report.longitude != null) {
                     val reportLoc = Location("").apply {
                         latitude = report.latitude
@@ -156,6 +165,18 @@ class SensorService : Service(), SensorEventListener {
                 }
             }
         }
+    }
+
+    private suspend fun refreshFloodReports() {
+        val reports = try {
+            repository.getRecentReports()
+        } catch (e: Exception) {
+            android.util.Log.e("SensorService", "Report refresh failed, using local data", e)
+            repository.getLocalReports()
+        }
+
+        cachedFloodReports = reports.filter { it.type.contains("flood", ignoreCase = true) }
+        lastReportRefreshTime = System.currentTimeMillis()
     }
 
     private fun createNotification(content: String): Notification {
@@ -200,9 +221,19 @@ class SensorService : Service(), SensorEventListener {
             val deltaX = (x - lastX).absoluteValue
             val deltaY = (y - lastY).absoluteValue
             val deltaZ = (z - lastZ).absoluteValue
+            val magnitude = sqrt(deltaX.pow(2) + deltaY.pow(2) + deltaZ.pow(2)).toDouble()
 
-            // Simple variance/vibration score
-            variance = sqrt(deltaX.pow(2) + deltaY.pow(2) + deltaZ.pow(2)).toDouble()
+            accelerometerSamples.addLast(magnitude)
+            vibrationSum += magnitude
+            if (accelerometerSamples.size > 20) {
+                vibrationSum -= accelerometerSamples.removeFirst()
+            }
+
+            variance = if (accelerometerSamples.isNotEmpty()) {
+                vibrationSum / accelerometerSamples.size
+            } else {
+                0.0
+            }
 
             lastX = x
             lastY = y

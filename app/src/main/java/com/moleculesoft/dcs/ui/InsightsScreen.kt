@@ -145,7 +145,7 @@ fun TrendsView(reports: List<UrbanReport>) {
         stats.forEach { (area, count) ->
             Text(text = "$area: $count reports")
             LinearProgressIndicator(
-                progress = { count.toFloat() / (reports.size.coerceAtLeast(1)) },
+                progress = count.toFloat() / reports.size.coerceAtLeast(1),
                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
             )
         }

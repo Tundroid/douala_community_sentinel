@@ -120,6 +120,22 @@ class DcsRepository {
         return sensorSuccess && reportsSuccess
     }
 
+    suspend fun getLatestSensorData(): SensorData? {
+        return sensorDao.getRecentSensorData().firstOrNull()
+    }
+
+    suspend fun getPendingSensorCount(): Int {
+        return sensorDao.getPendingSensorData().size
+    }
+
+    suspend fun getPendingReportCount(): Int {
+        return reportDao.getPendingReports().size
+    }
+
+    suspend fun getLocalReports(): List<UrbanReport> {
+        return reportDao.getAllReports()
+    }
+
     private suspend fun incrementUserPoints(points: Int) {
         val currentUserId = auth.currentUserOrNull()?.id ?: return
         try {
@@ -166,8 +182,8 @@ class DcsRepository {
                 }
                 .decodeList<UrbanReport>()
 
-            reports.forEach { reportDao.insertReport(it) }
-            reports
+            reports.forEach { reportDao.insertReport(it.copy(pendingUpload = false)) }
+            reports.map { it.copy(pendingUpload = false) }
         } catch (e: Exception) {
             Log.e("DcsRepository", "Cloud fetch failed, using local data", e)
             reportDao.getAllReports()
