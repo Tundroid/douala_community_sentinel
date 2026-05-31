@@ -18,8 +18,12 @@ class DataSyncWorker(
         // In a real app, we would read buffered data from a local database (e.g., Room)
         // For this demo, we'll just simulate syncing a single entry
         return try {
-            repository.saveSensorData(SensorData(neighborhood = "Bonaberi Demo"))
-            Result.success()
+            val success = repository.saveSensorData(SensorData(neighborhood = "Bonaberi Demo"))
+            if (success) {
+                Result.success()
+            } else {
+                if (runAttemptCount < 3) Result.retry() else Result.failure()
+            }
         } catch (e: Exception) {
             if (runAttemptCount < 3) Result.retry() else Result.failure()
         }

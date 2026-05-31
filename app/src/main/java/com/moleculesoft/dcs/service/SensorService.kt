@@ -13,6 +13,8 @@ import android.os.IBinder
 import android.os.Looper
 import androidx.core.app.NotificationCompat
 import com.google.android.gms.location.*
+import com.google.android.gms.common.GoogleApiAvailability
+import com.google.android.gms.common.ConnectionResult
 import com.moleculesoft.dcs.R
 import com.moleculesoft.dcs.MainActivity
 import com.moleculesoft.dcs.data.DcsRepository
@@ -47,7 +49,14 @@ class SensorService : Service(), SensorEventListener {
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
         
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(applicationContext)
+        
+        val googleApiAvailability = GoogleApiAvailability.getInstance()
+        val resultCode = googleApiAvailability.isGooglePlayServicesAvailable(this)
+        if (resultCode != ConnectionResult.SUCCESS) {
+            android.util.Log.e("SensorService", "Google Play Services not available: ${googleApiAvailability.getErrorString(resultCode)}")
+        }
+
         noiseRecorder = NoiseRecorder(this)
         noiseRecorder.start(cacheDir)
         repository = DcsRepository()
@@ -77,7 +86,7 @@ class SensorService : Service(), SensorEventListener {
         try {
             fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
         } catch (e: SecurityException) {
-            // Log or handle missing permission
+            android.util.Log.e("SensorService", "Location permission missing: ${e.message}")
         }
     }
 

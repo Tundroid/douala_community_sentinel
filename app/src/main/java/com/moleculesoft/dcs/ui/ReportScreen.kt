@@ -25,6 +25,7 @@ fun ReportScreen() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val repository = remember { DcsRepository() }
+    val snackbarHostState = remember { SnackbarHostState() }
     
     var type by remember { mutableStateOf("Flooding") }
     var description by remember { mutableStateOf("") }
@@ -42,76 +43,88 @@ fun ReportScreen() {
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState())
-    ) {
-        Text(text = "Submit Urban Report", style = MaterialTheme.typography.headlineSmall)
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        OutlinedTextField(
-            value = type,
-            onValueChange = { type = it },
-            label = { Text("Issue Type (e.g. Flooding, Waste, Pothole)") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        
-        OutlinedTextField(
-            value = description,
-            onValueChange = { description = it },
-            label = { Text("Description") },
-            modifier = Modifier.fillMaxWidth(),
-            minLines = 3
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-
-        if (imageUri != null) {
-            Image(
-                painter = rememberAsyncImagePainter(imageUri),
-                contentDescription = "Captured Issue",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp)
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            Text(text = "Submit Urban Report", style = MaterialTheme.typography.headlineSmall)
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            OutlinedTextField(
+                value = type,
+                onValueChange = { type = it },
+                label = { Text("Issue Type (e.g. Flooding, Waste, Pothole)") },
+                modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(8.dp))
-        }
-        
-        Button(
-            onClick = { cameraLauncher.launch(tempUri) },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
-        ) {
-            Text(if (imageUri == null) "Take Photo" else "Retake Photo")
-        }
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        if (isUploading) {
-            CircularProgressIndicator(modifier = Modifier.padding(16.dp))
-        } else {
-            Button(
-                onClick = {
-                    scope.launch {
-                        isUploading = true
-                        val report = UrbanReport(
-                            id = UUID.randomUUID().toString(),
-                            type = type,
-                            description = description
-                        )
-                        repository.submitReport(report, imageUri)
-                        isUploading = false
-                        // Reset form
-                        description = ""
-                        imageUri = null
-                    }
-                },
+            
+            OutlinedTextField(
+                value = description,
+                onValueChange = { description = it },
+                label = { Text("Description") },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = description.isNotBlank()
+                minLines = 3
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (imageUri != null) {
+                Image(
+                    painter = rememberAsyncImagePainter(imageUri),
+                    contentDescription = "Captured Issue",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+            
+            Button(
+                onClick = { cameraLauncher.launch(tempUri) },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
             ) {
-                Text("Submit Report")
+                Text(if (imageUri == null) "Take Photo" else "Retake Photo")
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            if (isUploading) {
+                CircularProgressIndicator(modifier = Modifier.padding(16.dp))
+            } else {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            isUploading = true
+                            android.util.Log.d("ReportScreen", "Submitting report. Image URI: $imageUri")
+                            val report = UrbanReport(
+                                id = UUID.randomUUID().toString(),
+                                type = type,
+                                description = description
+                            )
+                            val success = repository.submitReport(report, imageUri)
+                            isUploading = false
+                            
+                            if (success) {
+                                snackbarHostState.showSnackbar("Report submitted successfully!")
+                                // Reset form
+                                description = ""
+                                imageUri = null
+                            } else {
+                                snackbarHostState.showSnackbar("Failed to submit report. Please check your connection or try again later.")
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = description.isNotBlank()
+                ) {
+                    Text("Submit Report")
+                }
             }
         }
     }

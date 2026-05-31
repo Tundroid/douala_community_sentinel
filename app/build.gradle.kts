@@ -34,6 +34,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -64,12 +65,15 @@ dependencies {
     implementation(libs.firebase.firestore)
     implementation(libs.firebase.storage)
     implementation(libs.firebase.auth)
+    implementation(libs.firebase.appcheck.playintegrity)
+    debugImplementation(libs.firebase.appcheck.debug)
 
     // WorkManager
     implementation(libs.androidx.work.runtime.ktx)
 
     // Play Services
     implementation(libs.play.services.location)
+    implementation(libs.gms.base)
 
     // Coil
     implementation(libs.coil.compose)
