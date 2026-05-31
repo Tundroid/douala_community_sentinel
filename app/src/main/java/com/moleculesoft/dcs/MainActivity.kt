@@ -2,11 +2,13 @@ package com.moleculesoft.dcs
 
 import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
@@ -45,10 +47,25 @@ class MainActivity : ComponentActivity() {
             var showOnboarding by remember { mutableStateOf<Boolean?>(null) }
             var showRationale by remember { mutableStateOf(false) }
             
+            fun hasRequiredPermissions(): Boolean {
+                return ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED &&
+                    ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                    ) == PackageManager.PERMISSION_GRANTED &&
+                    ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.RECORD_AUDIO
+                    ) == PackageManager.PERMISSION_GRANTED
+            }
+
             LaunchedEffect(Unit) {
                 showOnboarding = !prefManager.isOnboardingCompleted.first()
                 if (showOnboarding == false) {
-                    showRationale = true
+                    showRationale = !hasRequiredPermissions()
                 }
             }
 
@@ -67,7 +84,7 @@ class MainActivity : ComponentActivity() {
                         if (showRationale) {
                             PermissionRationaleDialog(
                                 title = "Community Safety Needs Location",
-                                text = "To accurately map flooding and potholes in your neighborhood, Douala Community Sentinel needs location and camera access.",
+                                text = "To accurately map flooding and potholes in your neighborhood, Douala Community Sentinel needs location and audio access.",
                                 onConfirm = {
                                     showRationale = false
                                     requestPermissionLauncher.launch(
@@ -83,10 +100,16 @@ class MainActivity : ComponentActivity() {
                                 onDismiss = { showRationale = false }
                             )
                         }
-                        
-                        LaunchedEffect(Unit) {
-                            setupWorkManager()
+
+                        if (!showRationale) {
+                            LaunchedEffect(showOnboarding) {
+                                if (hasRequiredPermissions()) {
+                                    setupWorkManager()
+                                    checkAndStartService()
+                                }
+                            }
                         }
+
                         MainScreen()
                     }
                     else -> {} // Still loading pref

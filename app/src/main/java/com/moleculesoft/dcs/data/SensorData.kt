@@ -4,11 +4,13 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
+import kotlinx.serialization.Transient
 import kotlinx.datetime.Instant
 
 @Serializable
 @Entity(tableName = "sensor_data")
 data class SensorData(
+    @Transient
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
     val timestamp: Instant = Instant.fromEpochMilliseconds(java.lang.System.currentTimeMillis()),
@@ -18,7 +20,9 @@ data class SensorData(
     val accelerometerVariance: Double = 0.0,
     @SerialName("noise_level_db")
     val noiseLevelDb: Double = 0.0,
-    val neighborhood: String = "Unknown"
+    val neighborhood: String = "Unknown",
+    @Transient
+    val pendingUpload: Boolean = true
 )
 
 @Serializable
@@ -34,7 +38,9 @@ data class UrbanReport(
     @SerialName("image_url")
     val imageUrl: String? = null,
     @SerialName("user_id")
-    val userId: String = ""
+    val userId: String = "",
+    @Transient
+    val pendingUpload: Boolean = true
 )
 
 @Serializable

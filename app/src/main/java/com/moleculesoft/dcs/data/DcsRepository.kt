@@ -6,7 +6,7 @@ import com.moleculesoft.dcs.DcsApplication
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.storage.storage
-import kotlinx.coroutines.delay
+import io.github.jan.supabase.storage.BucketApi
 import java.util.*
 
 class DcsRepository {
@@ -29,12 +29,15 @@ class DcsRepository {
     }
 
     suspend fun saveSensorData(data: SensorData): Boolean {
-        // Local first
-        sensorDao.insertSensorData(data)
-        
+        val record = data.copy(pendingUpload = true)
+        val rowId = sensorDao.insertSensorData(record)
+
         return try {
             ensureAuthenticated()
-            db.from("sensor_data").insert(data)
+            db.from("sensor_data").insert(record)
+            if (rowId != -1L) {
+                sensorDao.setSensorDataUploaded(rowId.toInt(), false)
+            }
             true
         } catch (e: Exception) {
             Log.e("DcsRepository", "Error saving sensor data to cloud", e)
@@ -42,14 +45,34 @@ class DcsRepository {
         }
     }
 
+    suspend fun syncPendingSensorData(): Boolean {
+        val pendingData = sensorDao.getPendingSensorData()
+        if (pendingData.isEmpty()) return true
+
+        ensureAuthenticated()
+        var allSuccess = true
+
+        pendingData.forEach { pending ->
+            try {
+                db.from("sensor_data").insert(pending)
+                sensorDao.setSensorDataUploaded(pending.id, false)
+            } catch (e: Exception) {
+                Log.e("DcsRepository", "Failed to sync sensor data item ${pending.id}", e)
+                allSuccess = false
+            }
+        }
+
+        return allSuccess
+    }
+
     suspend fun submitReport(report: UrbanReport, imageUri: Uri?): Boolean {
-        // Save to local Room first
-        reportDao.insertReport(report)
-        
+        val localReport = report.copy(pendingUpload = true)
+        reportDao.insertReport(localReport)
+
         return try {
             ensureAuthenticated()
-            var finalReport = report
-            
+            var finalReport = localReport
+
             if (finalReport.userId.isEmpty()) {
                 finalReport = finalReport.copy(userId = auth.currentUserOrNull()?.id ?: "anonymous")
             }
@@ -60,7 +83,9 @@ class DcsRepository {
                 val uploadedUrl = uploadWithRetry(bucket, imagePath, imageUri)
                 finalReport = finalReport.copy(imageUrl = uploadedUrl)
             }
+
             db.from("reports").insert(finalReport)
+            reportDao.setReportUploaded(finalReport.id, false, finalReport.imageUrl)
             incrementUserPoints(10)
             true
         } catch (e: Exception) {
@@ -68,14 +93,40 @@ class DcsRepository {
             false
         }
     }
-    
+
+    suspend fun syncPendingReports(): Boolean {
+        val pendingReports = reportDao.getPendingReports()
+        if (pendingReports.isEmpty()) return true
+
+        ensureAuthenticated()
+        var allSuccess = true
+
+        pendingReports.forEach { pending ->
+            try {
+                db.from("reports").insert(pending)
+                reportDao.setReportUploaded(pending.id, false, pending.imageUrl)
+            } catch (e: Exception) {
+                Log.e("DcsRepository", "Failed to sync report ${pending.id}", e)
+                allSuccess = false
+            }
+        }
+
+        return allSuccess
+    }
+
+    suspend fun syncAllPendingData(): Boolean {
+        val sensorSuccess = syncPendingSensorData()
+        val reportsSuccess = syncPendingReports()
+        return sensorSuccess && reportsSuccess
+    }
+
     private suspend fun incrementUserPoints(points: Int) {
         val currentUserId = auth.currentUserOrNull()?.id ?: return
         try {
             val response = db.from("users").select {
                 filter { eq("id", currentUserId) }
             }.decodeSingleOrNull<UserStats>()
-            
+
             val newPoints = (response?.points ?: 0L) + points
             db.from("users").upsert(UserStats(id = currentUserId, points = newPoints))
         } catch (e: Exception) {
@@ -95,19 +146,18 @@ class DcsRepository {
     }
 
     private suspend fun uploadWithRetry(
-        bucket: io.github.jan.supabase.storage.BucketApi,
+        bucket: BucketApi,
         imagePath: String,
         imageUri: Uri
     ): String {
         val bytes = DcsApplication.instance.contentResolver.openInputStream(imageUri)?.use { it.readBytes() }
             ?: throw Exception("Could not read image")
-        
+
         bucket.upload(imagePath, bytes) { upsert = true }
         return bucket.publicUrl(imagePath)
     }
-    
-    suspend fun getRecentReports() : List<UrbanReport> {
-        // Try cloud first, fallback to local
+
+    suspend fun getRecentReports(): List<UrbanReport> {
         return try {
             val reports = db.from("reports")
                 .select {
@@ -115,8 +165,7 @@ class DcsRepository {
                     limit(50)
                 }
                 .decodeList<UrbanReport>()
-            
-            // Update local cache
+
             reports.forEach { reportDao.insertReport(it) }
             reports
         } catch (e: Exception) {

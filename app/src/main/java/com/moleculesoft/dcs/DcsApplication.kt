@@ -25,7 +25,8 @@ class DcsApplication : Application() {
             this,
             AppDatabase::class.java,
             "dcs_database"
-        ).build()
+        ).fallbackToDestructiveMigration(dropAllTables = true)
+            .build()
         
         supabase = createSupabaseClient(
             supabaseUrl = "https://jsgafguvblfjgaktrmqs.supabase.co", // TODO: Replace with your Supabase URL
