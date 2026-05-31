@@ -6,17 +6,26 @@ import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.storage.Storage
 import io.github.jan.supabase.auth.Auth
+import androidx.room.Room
+import com.moleculesoft.dcs.data.local.AppDatabase
 
 class DcsApplication : Application() {
     companion object {
         lateinit var instance: DcsApplication
             private set
         lateinit var supabase: SupabaseClient
+        lateinit var database: AppDatabase
     }
 
     override fun onCreate() {
         super.onCreate()
         instance = this
+        
+        database = Room.databaseBuilder(
+            this,
+            AppDatabase::class.java,
+            "dcs_database"
+        ).build()
         
         supabase = createSupabaseClient(
             supabaseUrl = "https://jsgafguvblfjgaktrmqs.supabase.co", // TODO: Replace with your Supabase URL

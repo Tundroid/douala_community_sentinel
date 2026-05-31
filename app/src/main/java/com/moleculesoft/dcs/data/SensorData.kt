@@ -1,12 +1,17 @@
 package com.moleculesoft.dcs.data
 
+import androidx.room.Entity
+import androidx.room.PrimaryKey
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
-import kotlin.time.Clock
-import kotlin.time.Instant
+import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 
 @Serializable
+@Entity(tableName = "sensor_data")
 data class SensorData(
+    @PrimaryKey(autoGenerate = true)
+    val id: Int = 0,
     val timestamp: Instant = Clock.System.now(),
     val latitude: Double? = null,
     val longitude: Double? = null,
@@ -18,8 +23,10 @@ data class SensorData(
 )
 
 @Serializable
+@Entity(tableName = "urban_reports")
 data class UrbanReport(
-    val id: String? = null,
+    @PrimaryKey
+    val id: String = "",
     val timestamp: Instant = Clock.System.now(),
     val latitude: Double? = null,
     val longitude: Double? = null,
@@ -32,7 +39,9 @@ data class UrbanReport(
 )
 
 @Serializable
+@Entity(tableName = "user_stats")
 data class UserStats(
+    @PrimaryKey
     val id: String = "",
     val points: Long = 0,
     val reports: Int = 0
