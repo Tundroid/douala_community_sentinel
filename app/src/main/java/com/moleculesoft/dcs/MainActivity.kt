@@ -8,7 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.*
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
@@ -16,6 +16,7 @@ import com.moleculesoft.dcs.service.SensorService
 import com.moleculesoft.dcs.worker.DataSyncWorker
 import com.moleculesoft.dcs.ui.theme.DoualaCommunitySentinelTheme
 import com.moleculesoft.dcs.ui.MainScreen
+import com.moleculesoft.dcs.ui.components.PermissionRationaleDialog
 import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
@@ -25,17 +26,6 @@ class MainActivity : ComponentActivity() {
     ) { permissions ->
         if (permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true) {
             startSensorService()
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                // Request background location separately
-                requestBackgroundLocation()
-            }
-        }
-    }
-
-    private fun requestBackgroundLocation() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            // This would normally be another launcher, but for now we just log/notify
-            // Google Play requires showing a RATIONALE before requesting this.
         }
     }
 
@@ -43,17 +33,30 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
+            var showRationale by remember { mutableStateOf(true) }
+            
             DoualaCommunitySentinelTheme {
-                LaunchedEffect(Unit) {
-                    requestPermissionLauncher.launch(
-                        arrayOf(
-                            Manifest.permission.ACCESS_FINE_LOCATION,
-                            Manifest.permission.ACCESS_COARSE_LOCATION,
-                            Manifest.permission.RECORD_AUDIO,
-                            Manifest.permission.CAMERA,
-                            Manifest.permission.POST_NOTIFICATIONS
-                        )
+                if (showRationale) {
+                    PermissionRationaleDialog(
+                        title = "Community Safety Needs Location",
+                        text = "To accurately map flooding and potholes in your neighborhood, Douala Community Sentinel needs location and camera access.",
+                        onConfirm = {
+                            showRationale = false
+                            requestPermissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                                    Manifest.permission.RECORD_AUDIO,
+                                    Manifest.permission.CAMERA,
+                                    Manifest.permission.POST_NOTIFICATIONS
+                                )
+                            )
+                        },
+                        onDismiss = { showRationale = false }
                     )
+                }
+                
+                LaunchedEffect(Unit) {
                     setupWorkManager()
                 }
                 MainScreen()

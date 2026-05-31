@@ -14,61 +14,57 @@ class DcsRepository {
     private val db = supabase.postgrest
     private val storage = supabase.storage
     private val auth = supabase.auth
+    private val localDb = DcsApplication.database
+    private val sensorDao = localDb.sensorDao()
+    private val reportDao = localDb.reportDao()
 
     private suspend fun ensureAuthenticated() {
         if (auth.currentUserOrNull() == null) {
             try {
                 auth.signInAnonymously()
             } catch (e: Exception) {
-                Log.e("DcsRepository", "Supabase Anonymous sign-in failed. Ensure Anonymous auth is enabled in Supabase dashboard.", e)
-                throw e
+                Log.e("DcsRepository", "Supabase Anonymous sign-in failed.", e)
             }
         }
     }
 
     suspend fun saveSensorData(data: SensorData): Boolean {
+        // Local first
+        sensorDao.insertSensorData(data)
+        
         return try {
             ensureAuthenticated()
             db.from("sensor_data").insert(data)
             true
         } catch (e: Exception) {
-            Log.e("DcsRepository", "Error saving sensor data", e)
+            Log.e("DcsRepository", "Error saving sensor data to cloud", e)
             false
         }
     }
 
     suspend fun submitReport(report: UrbanReport, imageUri: Uri?): Boolean {
+        // Save to local Room first
+        reportDao.insertReport(report)
+        
         return try {
             ensureAuthenticated()
             var finalReport = report
             
-            // Assign the anonymous user ID if not already present
             if (finalReport.userId.isEmpty()) {
                 finalReport = finalReport.copy(userId = auth.currentUserOrNull()?.id ?: "anonymous")
             }
 
             if (imageUri != null) {
-                Log.d("DcsRepository", "Starting upload. User ID: ${auth.currentUserOrNull()?.id}, URI: $imageUri")
                 val imagePath = "${UUID.randomUUID()}.jpg"
                 val bucket = storage.from("reports")
-                
-                try {
-                    Log.d("DcsRepository", "Uploading to path: $imagePath")
-                    
-                    // Start the upload with retry logic (max 3 attempts)
-                    val uploadedUrl = uploadWithRetry(bucket, imagePath, imageUri, maxRetries = 3)
-                    finalReport = finalReport.copy(imageUrl = uploadedUrl)
-                    Log.d("DcsRepository", "Upload successful: $uploadedUrl")
-                } catch (e: Exception) {
-                    Log.e("DcsRepository", "Unexpected error during image upload: ${e.message}", e)
-                    throw e
-                }
+                val uploadedUrl = uploadWithRetry(bucket, imagePath, imageUri)
+                finalReport = finalReport.copy(imageUrl = uploadedUrl)
             }
             db.from("reports").insert(finalReport)
-            incrementUserPoints(10) // 10 points per report
+            incrementUserPoints(10)
             true
         } catch (e: Exception) {
-            Log.e("DcsRepository", "Error submitting report: ${e.message}", e)
+            Log.e("DcsRepository", "Error submitting report to cloud", e)
             false
         }
     }
@@ -76,7 +72,6 @@ class DcsRepository {
     private suspend fun incrementUserPoints(points: Int) {
         val currentUserId = auth.currentUserOrNull()?.id ?: return
         try {
-            // Fetch current points or default to 0
             val response = db.from("users").select {
                 filter { eq("id", currentUserId) }
             }.decodeSingleOrNull<UserStats>()
@@ -98,54 +93,35 @@ class DcsRepository {
             UserStats()
         }
     }
-    
+
     private suspend fun uploadWithRetry(
         bucket: io.github.jan.supabase.storage.BucketApi,
         imagePath: String,
-        imageUri: Uri,
-        maxRetries: Int = 3
+        imageUri: Uri
     ): String {
-        var lastException: Exception? = null
-        var delayMs = 1000L // Start with 1 second delay
+        val bytes = DcsApplication.instance.contentResolver.openInputStream(imageUri)?.use { it.readBytes() }
+            ?: throw Exception("Could not read image")
         
-        val bytes = DcsApplication.instance.contentResolver.openInputStream(imageUri)?.use { 
-            it.readBytes() 
-        } ?: throw Exception("Could not read image URI")
-
-        for (attempt in 1..maxRetries) {
-            try {
-                Log.d("DcsRepository", "Upload attempt $attempt/$maxRetries for $imagePath")
-                bucket.upload(imagePath, bytes) {
-                    upsert = true
-                }
-                return bucket.publicUrl(imagePath)
-            } catch (e: Exception) {
-                lastException = e
-                Log.w("DcsRepository", "Upload attempt $attempt failed: ${e.message}", e)
-                
-                if (attempt < maxRetries) {
-                    // Exponential backoff
-                    Log.d("DcsRepository", "Retrying in ${delayMs}ms...")
-                    delay(delayMs)
-                    delayMs *= 2
-                }
-            }
-        }
-        
-        throw lastException ?: Exception("Upload failed after $maxRetries attempts")
+        bucket.upload(imagePath, bytes) { upsert = true }
+        return bucket.publicUrl(imagePath)
     }
     
     suspend fun getRecentReports() : List<UrbanReport> {
+        // Try cloud first, fallback to local
         return try {
-            db.from("reports")
+            val reports = db.from("reports")
                 .select {
                     order("timestamp", io.github.jan.supabase.postgrest.query.Order.DESCENDING)
                     limit(50)
                 }
                 .decodeList<UrbanReport>()
+            
+            // Update local cache
+            reports.forEach { reportDao.insertReport(it) }
+            reports
         } catch (e: Exception) {
-            Log.e("DcsRepository", "Error fetching reports", e)
-            emptyList()
+            Log.e("DcsRepository", "Cloud fetch failed, using local data", e)
+            reportDao.getAllReports()
         }
     }
 }
