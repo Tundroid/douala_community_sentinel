@@ -139,12 +139,13 @@ class DcsRepository {
     private suspend fun incrementUserPoints(points: Int) {
         val currentUserId = auth.currentUserOrNull()?.id ?: return
         try {
-            val response = db.from("users").select {
+            val response = db.from("profiles").select {
                 filter { eq("id", currentUserId) }
             }.decodeSingleOrNull<UserStats>()
 
             val newPoints = (response?.points ?: 0L) + points
-            db.from("users").upsert(UserStats(id = currentUserId, points = newPoints))
+            val newReports = (response?.reports ?: 0) + 1
+            db.from("profiles").upsert(UserStats(id = currentUserId, points = newPoints, reports = newReports))
         } catch (e: Exception) {
             Log.e("DcsRepository", "Error incrementing points", e)
         }
@@ -153,7 +154,7 @@ class DcsRepository {
     suspend fun getUserStats(): UserStats {
         val currentUserId = auth.currentUserOrNull()?.id ?: return UserStats()
         return try {
-            db.from("users").select {
+            db.from("profiles").select {
                 filter { eq("id", currentUserId) }
             }.decodeSingleOrNull<UserStats>() ?: UserStats(id = currentUserId)
         } catch (e: Exception) {

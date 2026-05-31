@@ -38,16 +38,22 @@ data class UrbanReport(
     @SerialName("image_url")
     val imageUrl: String? = null,
     @SerialName("user_id")
-    val userId: String = "",
+    val userId: String = "", // Links to profiles.id (UUID string)
+    val status: String = "pending",
     @Transient
     val pendingUpload: Boolean = true
 )
 
 @Serializable
-@Entity(tableName = "user_stats")
+@Entity(tableName = "profiles")
 data class UserStats(
     @PrimaryKey
     val id: String = "",
+    @SerialName("display_name")
+    val displayName: String? = null,
+    @SerialName("avatar_url")
+    val avatarUrl: String? = null,
     val points: Long = 0,
+    @SerialName("report_count")
     val reports: Int = 0
 )
