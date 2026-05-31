@@ -11,9 +11,10 @@ class DataSyncWorker(
     workerParams: WorkerParameters
 ) : CoroutineWorker(appContext, workerParams) {
 
-    private val repository = DcsRepository()
+    private lateinit var repository: DcsRepository
 
     override suspend fun doWork(): Result {
+        repository = DcsRepository()
         // In a real app, we would read buffered data from a local database (e.g., Room)
         // For this demo, we'll just simulate syncing a single entry
         return try {

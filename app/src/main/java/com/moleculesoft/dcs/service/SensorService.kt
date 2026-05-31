@@ -15,7 +15,12 @@ import androidx.core.app.NotificationCompat
 import com.google.android.gms.location.*
 import com.moleculesoft.dcs.R
 import com.moleculesoft.dcs.MainActivity
+import com.moleculesoft.dcs.data.DcsRepository
 import com.moleculesoft.dcs.data.NoiseRecorder
+import com.moleculesoft.dcs.data.SensorData
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlin.math.pow
 import kotlin.math.sqrt
 
@@ -26,6 +31,9 @@ class SensorService : Service(), SensorEventListener {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
     private lateinit var noiseRecorder: NoiseRecorder
+    private lateinit var repository: DcsRepository
+    private val serviceScope = CoroutineScope(Dispatchers.IO)
+    private var lastSaveTime = 0L
 
     private var lastX = 0f
     private var lastY = 0f
@@ -42,6 +50,7 @@ class SensorService : Service(), SensorEventListener {
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         noiseRecorder = NoiseRecorder(this)
         noiseRecorder.start(cacheDir)
+        repository = DcsRepository()
         
         createNotificationChannel()
         startForeground(1, createNotification("Collecting urban data..."))
@@ -73,9 +82,24 @@ class SensorService : Service(), SensorEventListener {
     }
 
     private fun processData(location: Location) {
-        // Here we would buffer or send data to a repository/worker
-        // For now, update notification with latest status
-        val status = "Lat: ${location.latitude}, Var: ${String.format("%.2f", variance)}"
+        val currentTime = System.currentTimeMillis()
+        val dbLevel = noiseRecorder.getDb()
+        
+        // Every 2 minutes, save data to repository
+        if (currentTime - lastSaveTime > 120000) {
+            serviceScope.launch {
+                val data = SensorData(
+                    latitude = location.latitude,
+                    longitude = location.longitude,
+                    accelerometerVariance = variance,
+                    noiseLevelDb = dbLevel
+                )
+                repository.saveSensorData(data)
+                lastSaveTime = currentTime
+            }
+        }
+
+        val status = "Lat: ${location.latitude}, Var: ${String.format("%.2f", variance)}, Noise: ${String.format("%.1f", dbLevel)} dB"
         updateNotification(status)
     }
 

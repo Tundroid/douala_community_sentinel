@@ -7,8 +7,8 @@ import kotlinx.coroutines.tasks.await
 import java.util.*
 
 class DcsRepository {
-    private val db = FirebaseFirestore.getInstance()
-    private val storage = FirebaseStorage.getInstance()
+    private val db by lazy { FirebaseFirestore.getInstance() }
+    private val storage by lazy { FirebaseStorage.getInstance() }
 
     suspend fun saveSensorData(data: SensorData) {
         db.collection("sensor_data").add(data).await()

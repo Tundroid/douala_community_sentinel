@@ -2,6 +2,7 @@ package com.moleculesoft.dcs
 
 import android.Manifest
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -24,6 +25,17 @@ class MainActivity : ComponentActivity() {
     ) { permissions ->
         if (permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true) {
             startSensorService()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                // Request background location separately
+                requestBackgroundLocation()
+            }
+        }
+    }
+
+    private fun requestBackgroundLocation() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // This would normally be another launcher, but for now we just log/notify
+            // Google Play requires showing a RATIONALE before requesting this.
         }
     }
 
