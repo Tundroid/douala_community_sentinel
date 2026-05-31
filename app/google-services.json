@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "231826141387",
+    "project_id": "douala-community-sentinel",
+    "storage_bucket": "douala-community-sentinel.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:231826141387:android:6b9439eab01d6cef9eeb4e",
+        "android_client_info": {
+          "package_name": "com.moleculesoft.dcs"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDiye6wk5vBb7-OazY9fj3KyZ6ljxep248"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
