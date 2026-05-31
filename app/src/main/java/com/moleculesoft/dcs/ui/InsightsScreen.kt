@@ -72,7 +72,7 @@ fun ReportCard(report: UrbanReport) {
             Text(text = report.type, style = MaterialTheme.typography.titleMedium)
             Text(text = report.description, style = MaterialTheme.typography.bodyMedium)
             Text(
-                text = "Time: ${report.timestamp.toDate()}",
+                text = "Time: ${report.timestamp}",
                 style = MaterialTheme.typography.labelSmall
             )
             

@@ -41,6 +41,7 @@ class SensorService : Service(), SensorEventListener {
     private var lastY = 0f
     private var lastZ = 0f
     private var variance = 0.0
+    private var currentNeighborhood = "Unknown"
 
     private val CHANNEL_ID = "SensorServiceChannel"
 
@@ -94,6 +95,9 @@ class SensorService : Service(), SensorEventListener {
         val currentTime = System.currentTimeMillis()
         val dbLevel = noiseRecorder.getDb()
         
+        currentNeighborhood = getNeighborhood(location.latitude, location.longitude)
+        val roadQuality = classifyRoadQuality(variance)
+
         // Every 2 minutes, save data to repository
         if (currentTime - lastSaveTime > 120000) {
             serviceScope.launch {
@@ -101,15 +105,34 @@ class SensorService : Service(), SensorEventListener {
                     latitude = location.latitude,
                     longitude = location.longitude,
                     accelerometerVariance = variance,
-                    noiseLevelDb = dbLevel
+                    noiseLevelDb = dbLevel,
+                    neighborhood = currentNeighborhood
                 )
                 repository.saveSensorData(data)
                 lastSaveTime = currentTime
             }
         }
 
-        val status = "Lat: ${location.latitude}, Var: ${String.format("%.2f", variance)}, Noise: ${String.format("%.1f", dbLevel)} dB"
+        val status = "Area: $currentNeighborhood | Road: $roadQuality | Noise: ${String.format("%.1f", dbLevel)} dB"
         updateNotification(status)
+    }
+
+    private fun getNeighborhood(lat: Double, lon: Double): String {
+        return when {
+            lat in 4.05..4.10 && lon in 9.60..9.68 -> "Bonaberi"
+            lat in 4.04..4.06 && lon in 9.69..9.72 -> "Akwa"
+            lat in 4.02..4.04 && lon in 9.71..9.75 -> "New Bell"
+            else -> "Douala"
+        }
+    }
+
+    private fun classifyRoadQuality(vibration: Double): String {
+        return when {
+            vibration < 1.0 -> "Good"
+            vibration < 3.0 -> "Fair"
+            vibration < 6.0 -> "Poor"
+            else -> "Critical"
+        }
     }
 
     private fun createNotification(content: String): Notification {

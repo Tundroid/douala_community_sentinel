@@ -1,23 +1,30 @@
 package com.moleculesoft.dcs
 
 import android.app.Application
-import com.moleculesoft.dcs.BuildConfig
-import com.google.firebase.FirebaseApp
-import com.google.firebase.appcheck.FirebaseAppCheck
-import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
-import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.createSupabaseClient
+import io.github.jan.supabase.postgrest.Postgrest
+import io.github.jan.supabase.storage.Storage
+import io.github.jan.supabase.auth.Auth
 
 class DcsApplication : Application() {
+    companion object {
+        lateinit var instance: DcsApplication
+            private set
+        lateinit var supabase: SupabaseClient
+    }
+
     override fun onCreate() {
         super.onCreate()
-        FirebaseApp.initializeApp(this)
-        val firebaseAppCheck = FirebaseAppCheck.getInstance()
-        firebaseAppCheck.installAppCheckProviderFactory(
-            if (BuildConfig.DEBUG) {
-                DebugAppCheckProviderFactory.getInstance()
-            } else {
-                PlayIntegrityAppCheckProviderFactory.getInstance()
-            }
-        )
+        instance = this
+        
+        supabase = createSupabaseClient(
+            supabaseUrl = "https://jsgafguvblfjgaktrmqs.supabase.co", // TODO: Replace with your Supabase URL
+            supabaseKey = "sb_publishable_yF_cXcUa9kywfCH3BzH3jw_b55I4PZz" // TODO: Replace with your Supabase Anon Key
+        ) {
+            install(Postgrest)
+            install(Auth)
+            install(Storage)
+        }
     }
 }
