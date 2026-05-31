@@ -4,7 +4,6 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
-import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 
 @Serializable
@@ -12,7 +11,7 @@ import kotlinx.datetime.Instant
 data class SensorData(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
-    val timestamp: Instant = Clock.System.now(),
+    val timestamp: Instant = kotlinx.datetime.Clock.System.now(),
     val latitude: Double? = null,
     val longitude: Double? = null,
     @SerialName("accelerometer_variance")
@@ -27,7 +26,7 @@ data class SensorData(
 data class UrbanReport(
     @PrimaryKey
     val id: String = "",
-    val timestamp: Instant = Clock.System.now(),
+    val timestamp: Instant = kotlinx.datetime.Clock.System.now(),
     val latitude: Double? = null,
     val longitude: Double? = null,
     val type: String = "", // Flooding, Waste, Pothole, Noise
