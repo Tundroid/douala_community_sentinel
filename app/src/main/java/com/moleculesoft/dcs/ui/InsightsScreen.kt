@@ -4,8 +4,11 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
@@ -18,12 +21,24 @@ import kotlinx.coroutines.launch
 fun InsightsScreen() {
     val repository = remember { DcsRepository() }
     val scope = rememberCoroutineScope()
-    var reports by remember { mutableStateOf<List<UrbanReport>>(emptyList()) }
+    var allReports by remember { mutableStateOf<List<UrbanReport>>(emptyList()) }
+    var selectedNeighborhood by remember { mutableStateOf("All") }
     var isLoading by remember { mutableStateOf(true) }
 
+    val neighborhoods = listOf("All", "Bonaberi", "Akwa", "New Bell", "Douala")
+
     LaunchedEffect(Unit) {
-        reports = repository.getRecentReports()
+        allReports = repository.getRecentReports()
         isLoading = false
+    }
+
+    val filteredReports = if (selectedNeighborhood == "All") {
+        allReports
+    } else {
+        allReports.filter { 
+            it.type.contains(selectedNeighborhood, ignoreCase = true) || 
+            it.description.contains(selectedNeighborhood, ignoreCase = true) 
+        }
     }
 
     Column(
@@ -33,27 +48,45 @@ fun InsightsScreen() {
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Text(text = "Urban Insights", style = MaterialTheme.typography.headlineSmall)
-            Button(onClick = { 
+            IconButton(onClick = { 
                 isLoading = true
                 scope.launch {
-                    reports = repository.getRecentReports()
+                    allReports = repository.getRecentReports()
                     isLoading = false
                 }
             }) {
-                Text("Refresh")
+                Icon(Icons.Default.Refresh, contentDescription = "Refresh")
             }
         }
         
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        ScrollableTabRow(
+            selectedTabIndex = neighborhoods.indexOf(selectedNeighborhood),
+            edgePadding = 0.dp,
+            containerColor = androidx.compose.ui.graphics.Color.Transparent,
+            divider = {}
+        ) {
+            neighborhoods.forEach { neighborhood ->
+                Tab(
+                    selected = selectedNeighborhood == neighborhood,
+                    onClick = { selectedNeighborhood = neighborhood },
+                    text = { Text(neighborhood) }
+                )
+            }
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
         
         if (isLoading) {
-            CircularProgressIndicator(modifier = Modifier.padding(16.dp))
+            CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
         } else {
             LazyColumn {
-                items(reports) { report ->
+                items(filteredReports) { report ->
                     ReportCard(report)
                 }
             }

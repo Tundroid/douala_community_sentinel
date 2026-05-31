@@ -98,6 +98,9 @@ class SensorService : Service(), SensorEventListener {
         currentNeighborhood = getNeighborhood(location.latitude, location.longitude)
         val roadQuality = classifyRoadQuality(variance)
 
+        // Proximity alert check
+        checkForNearbyHazards(location)
+
         // Every 2 minutes, save data to repository
         if (currentTime - lastSaveTime > 120000) {
             serviceScope.launch {
@@ -132,6 +135,26 @@ class SensorService : Service(), SensorEventListener {
             vibration < 3.0 -> "Fair"
             vibration < 6.0 -> "Poor"
             else -> "Critical"
+        }
+    }
+
+    private fun checkForNearbyHazards(location: Location) {
+        serviceScope.launch {
+            val reports = repository.getRecentReports()
+            val floodReports = reports.filter { it.type.contains("flood", ignoreCase = true) }
+            
+            for (report in floodReports) {
+                if (report.latitude != null && report.longitude != null) {
+                    val reportLoc = Location("").apply {
+                        latitude = report.latitude
+                        longitude = report.longitude
+                    }
+                    if (location.distanceTo(reportLoc) < 500) { // 500 meters
+                        updateNotification("SENTINEL ALERT: Flood risk reported nearby!")
+                        break
+                    }
+                }
+            }
         }
     }
 

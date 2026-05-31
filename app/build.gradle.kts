@@ -73,7 +73,11 @@ dependencies {
 
     // Play Services
     implementation(libs.play.services.location)
+    implementation(libs.play.services.maps)
     implementation(libs.gms.base)
+
+    // Maps Compose
+    implementation(libs.maps.compose)
 
     // Coil
     implementation(libs.coil.compose)

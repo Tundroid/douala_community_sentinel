@@ -30,3 +30,10 @@ data class UrbanReport(
     @SerialName("user_id")
     val userId: String = ""
 )
+
+@Serializable
+data class UserStats(
+    val id: String = "",
+    val points: Long = 0,
+    val reports: Int = 0
+)

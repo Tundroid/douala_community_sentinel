@@ -31,7 +31,7 @@ fun MapScreen() {
             if (report.latitude != null && report.longitude != null) {
                 val position = LatLng(report.latitude, report.longitude)
                 Marker(
-                    state = rememberMarkerState(position = position),
+                    state = remember { MarkerState(position = position) },
                     title = report.type,
                     snippet = report.description
                 )
